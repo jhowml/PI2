@@ -222,6 +222,27 @@ As listagens aceitam `page` (padrão `1`) e `pageSize` (padrão `20`, máx. `100
 { "token": "eyJhbGciOi..." }
 ```
 
+### Cardápio
+
+| Método | Rota | Descrição |
+|--------|------|-----------|
+| `GET` | `/api/cardapio` | Lista os itens do cardápio (paginado; ignora itens excluídos) |
+| `POST` | `/api/cardapio` | Cadastra um item no cardápio |
+
+**Query — `GET /api/cardapio`:** `page`, `pageSize`, `search` (busca por nome, sem diferenciar maiúsculas/minúsculas).
+
+**Body — `POST /api/cardapio`:**
+
+| Campo | Tipo | Obrigatório | Regras |
+|-------|------|-------------|--------|
+| `nome` | string | sim | 1–100 caracteres |
+| `descricao` | string | não | até 255 caracteres |
+| `preco` | number | sim | positivo, no máximo 2 casas decimais |
+| `categoria` | string | sim | 1–50 caracteres (ex.: `Pratos`, `Bebidas`) |
+| `disponivel` | boolean | não | padrão `true` |
+
+Valores monetários são devolvidos como **string** decimal (ex.: `"18.5"`), para não perder precisão.
+
 ---
 
 ## Testes

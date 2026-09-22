@@ -7,6 +7,7 @@ import { prisma } from './config/database';
 import { errorHandler } from './shared/middleware/errorHandler.middleware';
 import { authenticate } from './shared/middleware/auth.middleware';
 import authRoutes from './modules/auth/auth.routes';
+import cardapioRoutes from './modules/cardapio/cardapio.routes';
 
 const app = express();
 app.use(cors({ origin: env.ALLOWED_ORIGINS.split(',') }));
@@ -48,5 +49,6 @@ app.get('/health', async (_req, res) => {
   }
 });
 app.use('/api/auth', authRoutes);
+app.use('/api/cardapio', authenticate, cardapioRoutes);
 app.use(errorHandler);
 export { app };
