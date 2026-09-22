@@ -34,6 +34,12 @@ export class ConflictError extends AppError {
   }
 }
 
+export class InvalidDescontoError extends AppError {
+  constructor(message = 'O desconto não pode ser maior que o valor dos itens somado à taxa de entrega.') {
+    super(message, 422, 'INVALID_DESCONTO');
+  }
+}
+
 export class BadGatewayError extends AppError {
   constructor(message = 'Resposta inválida do serviço externo.') {
     super(message, 502, 'BAD_GATEWAY');

@@ -2,6 +2,9 @@
 CREATE TYPE "StatusPedido" AS ENUM ('PENDENTE', 'CONFIRMADO', 'PREPARANDO', 'ENTREGUE', 'CANCELADO');
 
 -- CreateEnum
+CREATE TYPE "TipoEntrega" AS ENUM ('ENTREGA', 'RETIRADA');
+
+-- CreateEnum
 CREATE TYPE "FormaPagamento" AS ENUM ('DINHEIRO', 'PIX', 'CARTAO_CREDITO', 'CARTAO_DEBITO');
 
 -- CreateEnum
@@ -44,6 +47,9 @@ CREATE TABLE "pedidos" (
     "id" SERIAL NOT NULL,
     "data_pedido" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "status" "StatusPedido" NOT NULL DEFAULT 'PENDENTE',
+    "tipo_entrega" "TipoEntrega" NOT NULL,
+    "taxa_entrega" DECIMAL(10,2) NOT NULL DEFAULT 0,
+    "desconto" DECIMAL(10,2) NOT NULL DEFAULT 0,
     "valor_total" DECIMAL(10,2) NOT NULL,
     "obs" VARCHAR(255),
     "cliente_id" INTEGER NOT NULL,

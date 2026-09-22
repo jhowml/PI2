@@ -82,7 +82,7 @@ npm run db:migrate
 npm run db:seed
 ```
 
-Insere itens de cardápio e clientes com endereços **fictícios** do Guarujá. O seed só insere dados em tabelas vazias, então pode ser executado mais de uma vez.
+Insere itens de cardápio, clientes com endereços **fictícios** do Guarujá e dois pedidos de exemplo (um de entrega com taxa e um de retirada com desconto). O seed só insere dados em tabelas vazias, então pode ser executado mais de uma vez.
 
 ### 5. Subir a API
 
@@ -152,7 +152,7 @@ Detalhes e convenções de código estão em [`CLAUDE.md`](./CLAUDE.md).
 |----------|--------|-------------------|
 | **Cliente** | `clientes` | `nome`, `telefone`, `obs`, `cep`, `logradouro`, `numero`, `complemento`, `bairro`, `cidade`, `uf` |
 | **Cardapio** | `cardapio` | `nome`, `descricao`, `preco`, `categoria`, `disponivel`, `deletedAt` (exclusão lógica) |
-| **Pedido** | `pedidos` | `dataPedido`, `status`, `valorTotal`, `obs`, `clienteId` |
+| **Pedido** | `pedidos` | `dataPedido`, `status`, `tipoEntrega`, `taxaEntrega`, `desconto`, `valorTotal`, `obs`, `clienteId` |
 | **ItemPedido** | `itens_pedido` | `quantidade`, `precoUnitario` (preço no momento do pedido), `pedidoId`, `cardapioId` |
 | **Pagamento** | `pagamentos` | `forma`, `status`, `valor`, `dataPagamento`, `pedidoId` (1-para-1 com o pedido) |
 
@@ -162,6 +162,8 @@ Detalhes e convenções de código estão em [`CLAUDE.md`](./CLAUDE.md).
 PENDENTE → CONFIRMADO → PREPARANDO → ENTREGUE
     └──────────┴─────────────┴──────→ CANCELADO
 ```
+
+**Tipo de entrega:** `ENTREGA` · `RETIRADA`
 
 **Formas de pagamento:** `DINHEIRO` · `PIX` · `CARTAO_CREDITO` · `CARTAO_DEBITO`
 
@@ -189,6 +191,7 @@ Authorization: Bearer <token>
 | 404 | `NOT_FOUND` | Recurso inexistente |
 | 409 | `CONFLICT` | Regra de negócio violada |
 | 422 | `VALIDATION_ERROR` | Dados inválidos (inclui `fields` com o detalhe por campo) |
+| 422 | `INVALID_DESCONTO` | Desconto maior que o valor dos itens somado à taxa de entrega |
 | 502 | `BAD_GATEWAY` | Serviço externo respondeu de forma inesperada |
 | 503 | `SERVICE_UNAVAILABLE` | Serviço externo fora do ar ou sem resposta |
 | 500 | `INTERNAL_ERROR` | Erro inesperado |
@@ -297,6 +300,8 @@ Aceita o CEP com ou sem hífen (`11410-000` ou `11410000`).
 |--------|------|-----------|
 | `GET` | `/api/pedidos` | Lista pedidos, do mais recente para o mais antigo (paginado), com cliente e itens |
 | `GET` | `/api/pedidos/:id` | Detalha um pedido com cliente e itens (`404` se não existir) |
+
+As respostas incluem `tipoEntrega`, `taxaEntrega`, `desconto` e `valorTotal` de cada pedido.
 | `POST` | `/api/pedidos` | Registra um pedido com um ou mais itens do cardápio |
 
 **Query — `GET /api/pedidos`:** `page`, `pageSize`, `status` (`PENDENTE`, `CONFIRMADO`, `PREPARANDO`, `ENTREGUE` ou `CANCELADO`).
@@ -306,6 +311,9 @@ Aceita o CEP com ou sem hífen (`11410-000` ou `11410000`).
 | Campo | Tipo | Obrigatório | Regras |
 |-------|------|-------------|--------|
 | `clienteId` | number | sim | cliente existente |
+| `tipoEntrega` | string | sim | `ENTREGA` ou `RETIRADA` |
+| `taxaEntrega` | number | não | padrão `0`; não negativa, até 2 casas decimais; **deve ser `0` em `RETIRADA`** |
+| `desconto` | number | não | padrão `0`; não negativo, até 2 casas decimais |
 | `itens` | array | sim | 1 a 100 itens, sem repetir o mesmo `cardapioId` |
 | `itens[].cardapioId` | number | sim | item existente, não excluído e disponível |
 | `itens[].quantidade` | number | sim | inteiro de 1 a 999 |
@@ -315,19 +323,27 @@ Aceita o CEP com ou sem hífen (`11410-000` ou `11410000`).
 // POST /api/pedidos
 {
   "clienteId": 1,
+  "tipoEntrega": "ENTREGA",
+  "taxaEntrega": 5.00,
+  "desconto": 2.00,
   "itens": [
-    { "cardapioId": 2, "quantidade": 3 },
-    { "cardapioId": 4, "quantidade": 2 }
+    { "cardapioId": 2, "quantidade": 2 },
+    { "cardapioId": 4, "quantidade": 1 }
   ],
   "obs": "Sem cebola"
 }
 ```
 
+Com os itens custando R$ 15,00 e R$ 6,00, o pedido é gravado com `valorTotal` = 2 × 15,00 + 1 × 6,00 + 5,00 − 2,00 = **39,00**.
+
 Regras aplicadas pela API:
 
 - O pedido é criado com status `PENDENTE`.
 - O `precoUnitario` de cada item é o **preço atual** do cardápio, gravado no pedido; mudanças futuras de preço não alteram pedidos já registrados.
-- O `valorTotal` é calculado pela API (soma de `precoUnitario × quantidade`) e não é aceito no corpo da requisição.
+- O `valorTotal` é sempre calculado pela API: **Σ (quantidade × precoUnitario) + taxaEntrega − desconto**. Se for enviado no corpo da requisição, é ignorado.
+- `RETIRADA` com `taxaEntrega` diferente de `0`, ou `taxaEntrega`/`desconto` negativos → `422 VALIDATION_ERROR`.
+- Desconto que deixaria o total negativo → `422 INVALID_DESCONTO`.
+- Os cálculos usam aritmética decimal exata (sem arredondamentos de ponto flutuante).
 - Cliente inexistente ou item do cardápio inexistente/excluído → `404`; item marcado como indisponível → `409`.
 
 ---

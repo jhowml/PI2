@@ -1,6 +1,7 @@
 import 'dotenv/config';
-import { PrismaClient } from '@prisma/client';
+import { Prisma, PrismaClient, TipoEntrega } from '@prisma/client';
 import { buildDatabaseUrl } from '../src/config/buildDatabaseUrl';
+import { calculatePedidoTotal } from '../src/modules/pedidos/services/calculate-pedido-total/calculate-pedido-total';
 
 function resolveDatabaseUrl(): string {
   if (process.env.DATABASE_URL) return process.env.DATABASE_URL;
@@ -86,9 +87,70 @@ async function seedClientes() {
   });
 }
 
+async function createPedidoExemplo(input: {
+  clienteNome: string;
+  tipoEntrega: TipoEntrega;
+  taxaEntrega: string;
+  desconto: string;
+  obs?: string;
+  itens: { cardapioNome: string; quantidade: number }[];
+}) {
+  const cliente = await prisma.cliente.findFirstOrThrow({ where: { nome: input.clienteNome } });
+
+  const itens = await Promise.all(
+    input.itens.map(async (item) => {
+      const cardapio = await prisma.cardapio.findFirstOrThrow({ where: { nome: item.cardapioNome, deletedAt: null } });
+      return { cardapioId: cardapio.id, quantidade: item.quantidade, precoUnitario: cardapio.preco };
+    }),
+  );
+
+  const taxaEntrega = new Prisma.Decimal(input.taxaEntrega);
+  const desconto = new Prisma.Decimal(input.desconto);
+
+  await prisma.pedido.create({
+    data: {
+      clienteId: cliente.id,
+      tipoEntrega: input.tipoEntrega,
+      taxaEntrega,
+      desconto,
+      valorTotal: calculatePedidoTotal(itens, taxaEntrega, desconto),
+      obs: input.obs,
+      itens: { create: itens },
+    },
+  });
+}
+
+async function seedPedidos() {
+  if ((await prisma.pedido.count()) > 0) return;
+
+  await createPedidoExemplo({
+    clienteNome: 'Carlos Eduardo Lima',
+    tipoEntrega: TipoEntrega.ENTREGA,
+    taxaEntrega: '8.00',
+    desconto: '0.00',
+    obs: 'Interfone quebrado, ligar ao chegar',
+    itens: [
+      { cardapioNome: 'Picanha na chapa', quantidade: 1 },
+      { cardapioNome: 'Refrigerante lata', quantidade: 2 },
+    ],
+  });
+
+  await createPedidoExemplo({
+    clienteNome: 'João Retirada Balcão',
+    tipoEntrega: TipoEntrega.RETIRADA,
+    taxaEntrega: '0.00',
+    desconto: '5.00',
+    itens: [
+      { cardapioNome: 'Frango grelhado', quantidade: 2 },
+      { cardapioNome: 'Suco natural de laranja', quantidade: 2 },
+    ],
+  });
+}
+
 async function main() {
   await seedCardapio();
   await seedClientes();
+  await seedPedidos();
   console.log('Seed concluído.');
 }
 

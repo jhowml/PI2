@@ -1,4 +1,4 @@
-import { Prisma } from '@prisma/client';
+import { Prisma, TipoEntrega } from '@prisma/client';
 import { prisma } from '@/config/database';
 import { paginate } from '@/shared/types/pagination';
 import { ListPedidosDTO } from '@/modules/pedidos/dtos/list-pedidos/list-pedidos.types';
@@ -31,6 +31,9 @@ export type ItemPedidoInsertInput = {
 
 export type PedidoInsertInput = {
   clienteId: number;
+  tipoEntrega: TipoEntrega;
+  taxaEntrega: Prisma.Decimal;
+  desconto: Prisma.Decimal;
   valorTotal: Prisma.Decimal;
   obs?: string;
   itens: ItemPedidoInsertInput[];
@@ -40,6 +43,9 @@ export async function insertPedido(input: PedidoInsertInput) {
   return prisma.pedido.create({
     data: {
       clienteId: input.clienteId,
+      tipoEntrega: input.tipoEntrega,
+      taxaEntrega: input.taxaEntrega,
+      desconto: input.desconto,
       valorTotal: input.valorTotal,
       obs: input.obs,
       itens: { create: input.itens },

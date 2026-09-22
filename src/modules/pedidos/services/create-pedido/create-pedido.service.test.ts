@@ -1,8 +1,9 @@
 import { describe, it, expect, vi } from 'vitest';
 import { Prisma } from '@prisma/client';
 import { createPedido } from './create-pedido.service';
-import { ConflictError, NotFoundError } from '@/shared/errors/AppError';
+import { ConflictError, InvalidDescontoError, NotFoundError } from '@/shared/errors/AppError';
 import type { CreatePedidoPorts } from '@/composition/pedido-creation.ports';
+import type { CreatePedidoDTO } from '@/modules/pedidos/dtos/create-pedido/create-pedido.types';
 
 const fakeCliente = {
   id: 1,
@@ -36,19 +37,26 @@ function makeItemCardapio(id: number, preco: string, overrides: Record<string, u
 function makePorts(overrides: Partial<CreatePedidoPorts> = {}): CreatePedidoPorts {
   return {
     findClienteById: vi.fn().mockResolvedValue(fakeCliente),
-    findCardapioItensByIds: vi.fn().mockResolvedValue([]),
+    findCardapioItensByIds: vi.fn().mockResolvedValue([makeItemCardapio(2, '15.00'), makeItemCardapio(4, '6.00')]),
     insertPedido: vi.fn().mockResolvedValue({ id: 1 }),
     ...overrides,
   };
 }
 
-const validDto = {
+const validDto: CreatePedidoDTO = {
   clienteId: 1,
+  tipoEntrega: 'ENTREGA',
+  taxaEntrega: 5,
+  desconto: 2,
   itens: [
-    { cardapioId: 2, quantidade: 3 },
-    { cardapioId: 4, quantidade: 2 },
+    { cardapioId: 2, quantidade: 2 },
+    { cardapioId: 4, quantidade: 1 },
   ],
 };
+
+function insertedInput(ports: CreatePedidoPorts) {
+  return vi.mocked(ports.insertPedido).mock.calls[0][0];
+}
 
 describe('createPedido service', () => {
   it('should throw NotFoundError when the cliente does not exist', async () => {
@@ -60,9 +68,7 @@ describe('createPedido service', () => {
   });
 
   it('should look up all cardapio items in a single call', async () => {
-    const ports = makePorts({
-      findCardapioItensByIds: vi.fn().mockResolvedValue([makeItemCardapio(2, '34.90'), makeItemCardapio(4, '6.50')]),
-    });
+    const ports = makePorts();
 
     await createPedido(validDto, ports);
 
@@ -72,7 +78,7 @@ describe('createPedido service', () => {
 
   it('should throw NotFoundError when a cardapio item does not exist or was deleted', async () => {
     const ports = makePorts({
-      findCardapioItensByIds: vi.fn().mockResolvedValue([makeItemCardapio(2, '34.90')]),
+      findCardapioItensByIds: vi.fn().mockResolvedValue([makeItemCardapio(2, '15.00')]),
     });
 
     await expect(createPedido(validDto, ports)).rejects.toThrow('Item do cardápio (id 4) não encontrado(a).');
@@ -82,8 +88,8 @@ describe('createPedido service', () => {
   it('should throw ConflictError when a cardapio item is unavailable', async () => {
     const ports = makePorts({
       findCardapioItensByIds: vi.fn().mockResolvedValue([
-        makeItemCardapio(2, '34.90'),
-        makeItemCardapio(4, '6.50', { nome: 'Pudim de leite', disponivel: false }),
+        makeItemCardapio(2, '15.00'),
+        makeItemCardapio(4, '6.00', { nome: 'Pudim de leite', disponivel: false }),
       ]),
     });
 
@@ -94,53 +100,74 @@ describe('createPedido service', () => {
     expect(ports.insertPedido).not.toHaveBeenCalled();
   });
 
-  it('should compute valorTotal from the current cardapio prices', async () => {
-    const ports = makePorts({
-      findCardapioItensByIds: vi.fn().mockResolvedValue([makeItemCardapio(2, '34.90'), makeItemCardapio(4, '6.50')]),
-    });
+  it('should take precoUnitario from the cardapio, not from the request', async () => {
+    const ports = makePorts();
+    const dtoWithInjectedPrice = {
+      ...validDto,
+      itens: [
+        { cardapioId: 2, quantidade: 2, precoUnitario: 0.01 },
+        { cardapioId: 4, quantidade: 1, precoUnitario: 0.01 },
+      ],
+    } as CreatePedidoDTO;
+
+    await createPedido(dtoWithInjectedPrice, ports);
+
+    const input = insertedInput(ports);
+    expect(input.itens[0].precoUnitario.toFixed(2)).toBe('15.00');
+    expect(input.itens[1].precoUnitario.toFixed(2)).toBe('6.00');
+  });
+
+  it('should compute valorTotal = itens + taxaEntrega - desconto', async () => {
+    const ports = makePorts();
 
     await createPedido(validDto, ports);
 
-    const input = vi.mocked(ports.insertPedido).mock.calls[0][0];
-    expect(input.valorTotal.toFixed(2)).toBe('117.70');
+    const input = insertedInput(ports);
+    expect(input.valorTotal.toFixed(2)).toBe('39.00');
+    expect(input.taxaEntrega.toFixed(2)).toBe('5.00');
+    expect(input.desconto.toFixed(2)).toBe('2.00');
+    expect(input.tipoEntrega).toBe('ENTREGA');
     expect(input.clienteId).toBe(1);
-    expect(input.itens).toHaveLength(2);
-    expect(input.itens[0]).toMatchObject({ cardapioId: 2, quantidade: 3 });
-    expect(input.itens[0].precoUnitario.toFixed(2)).toBe('34.90');
-    expect(input.itens[1]).toMatchObject({ cardapioId: 4, quantidade: 2 });
-    expect(input.itens[1].precoUnitario.toFixed(2)).toBe('6.50');
   });
 
-  it('should not suffer from floating point errors when summing prices', async () => {
-    const ports = makePorts({
-      findCardapioItensByIds: vi.fn().mockResolvedValue([makeItemCardapio(1, '0.10'), makeItemCardapio(2, '0.20')]),
-    });
+  it('should ignore a valorTotal sent by the client', async () => {
+    const ports = makePorts();
 
-    await createPedido(
-      { clienteId: 1, itens: [{ cardapioId: 1, quantidade: 1 }, { cardapioId: 2, quantidade: 1 }] },
-      ports,
-    );
+    await createPedido({ ...validDto, valorTotal: 1 } as CreatePedidoDTO, ports);
 
-    const input = vi.mocked(ports.insertPedido).mock.calls[0][0];
-    expect(input.valorTotal.equals(new Prisma.Decimal('0.30'))).toBe(true);
+    expect(insertedInput(ports).valorTotal.toFixed(2)).toBe('39.00');
+  });
+
+  it('should create a RETIRADA pedido without taxa de entrega', async () => {
+    const ports = makePorts();
+
+    await createPedido({ ...validDto, tipoEntrega: 'RETIRADA', taxaEntrega: 0, desconto: 0 }, ports);
+
+    const input = insertedInput(ports);
+    expect(input.tipoEntrega).toBe('RETIRADA');
+    expect(input.taxaEntrega.isZero()).toBe(true);
+    expect(input.valorTotal.toFixed(2)).toBe('36.00');
+  });
+
+  it('should throw InvalidDescontoError and not persist when the desconto exceeds the total', async () => {
+    const ports = makePorts();
+
+    await expect(createPedido({ ...validDto, desconto: 41.01 }, ports)).rejects.toThrow(InvalidDescontoError);
+    expect(ports.insertPedido).not.toHaveBeenCalled();
   });
 
   it('should keep the order of the requested items regardless of lookup order', async () => {
     const ports = makePorts({
-      findCardapioItensByIds: vi.fn().mockResolvedValue([makeItemCardapio(4, '6.50'), makeItemCardapio(2, '34.90')]),
+      findCardapioItensByIds: vi.fn().mockResolvedValue([makeItemCardapio(4, '6.00'), makeItemCardapio(2, '15.00')]),
     });
 
     await createPedido(validDto, ports);
 
-    const input = vi.mocked(ports.insertPedido).mock.calls[0][0];
-    expect(input.itens.map((item) => item.cardapioId)).toEqual([2, 4]);
+    expect(insertedInput(ports).itens.map((item) => item.cardapioId)).toEqual([2, 4]);
   });
 
   it('should pass obs and return the created pedido', async () => {
-    const ports = makePorts({
-      findCardapioItensByIds: vi.fn().mockResolvedValue([makeItemCardapio(2, '34.90'), makeItemCardapio(4, '6.50')]),
-      insertPedido: vi.fn().mockResolvedValue({ id: 10 }),
-    });
+    const ports = makePorts({ insertPedido: vi.fn().mockResolvedValue({ id: 10 }) });
 
     const result = await createPedido({ ...validDto, obs: 'Sem cebola' }, ports);
 

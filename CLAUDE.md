@@ -133,7 +133,7 @@ Modules are named after the domain entity they own, in **pt-BR**:
 
 | Path | Purpose |
 |---|---|
-| `shared/errors/AppError.ts` | Base error class; subclasses: `NotFoundError`, `UnauthorizedError`, `ForbiddenError`, `ConflictError`, `BadGatewayError`, `ServiceUnavailableError` |
+| `shared/errors/AppError.ts` | Base error class; subclasses: `NotFoundError`, `UnauthorizedError`, `ForbiddenError`, `ConflictError`, `InvalidDescontoError`, `BadGatewayError`, `ServiceUnavailableError` |
 | `shared/middleware/errorHandler.middleware.ts` | Global Express error handler; formats `AppError` and Zod errors |
 | `shared/middleware/auth.middleware.ts` | `authenticate` — validates the `Bearer` JWT; applied to every `/api/*` route except `/api/auth` |
 | `shared/types/pagination.ts` | `paginate()` helper and `buildPaginatedResult()` — used across all list endpoints |
@@ -146,9 +146,23 @@ All entity names in **pt-BR** (matching the database schema):
 
 - **Cliente** — comprador; possui `nome`, `telefone`, `obs` e endereço estruturado para o ViaCEP (`cep`, `logradouro`, `numero`, `complemento`, `bairro`, `cidade`, `uf`), todos opcionais
 - **Cardapio** — item do cardápio; possui `nome`, `descricao`, `preco`, `categoria`, `disponivel` e `deletedAt` (soft delete)
-- **Pedido** — pertence a um cliente; possui `dataPedido`, `status`, `valorTotal`, `obs`; status: `PENDENTE → CONFIRMADO → PREPARANDO → ENTREGUE | CANCELADO`
+- **Pedido** — pertence a um cliente; possui `dataPedido`, `status`, `tipoEntrega` (`ENTREGA` | `RETIRADA`), `taxaEntrega`, `desconto`, `valorTotal`, `obs`; status: `PENDENTE → CONFIRMADO → PREPARANDO → ENTREGUE | CANCELADO`
 - **ItemPedido** — item de um pedido; possui `quantidade` e `precoUnitario` (preço do cardápio no momento do pedido); removido em cascata com o pedido
 - **Pagamento** — associado 1-para-1 a um pedido; `forma`: `DINHEIRO`, `PIX`, `CARTAO_CREDITO`, `CARTAO_DEBITO`; `status`: `PENDENTE`, `PAGO`, `ESTORNADO`
+
+### `Pedido.valorTotal`
+
+`valorTotal` is an **intentional denormalization**: the financial closing of the pedido, stored so reports and payments never depend on recomputing history.
+
+```
+valorTotal = Σ (quantidade × precoUnitario of the pedido's ItemPedido) + taxaEntrega − desconto
+```
+
+- It is **never** accepted from the request body; it is always computed in the service by `calculatePedidoTotal()` (`modules/pedidos/services/calculate-pedido-total/`).
+- `precoUnitario` is the cardápio price at the moment of the sale, copied into `ItemPedido` so later price changes do not rewrite history.
+- `RETIRADA` ⇒ `taxaEntrega = 0` (enforced in the DTO). `taxaEntrega` and `desconto` are never negative.
+- A `desconto` that would make the total negative throws `InvalidDescontoError` (422).
+- **Any future change** to a pedido's itens, `taxaEntrega` or `desconto` (e.g. editing pedidos) must recompute `valorTotal` with `calculatePedidoTotal()` over **all** `ItemPedido` of that pedido, and persist the pedido and its itens in the same transaction.
 
 There is **no** `User` model: authentication uses a single user defined by `APP_USERNAME`/`APP_PASSWORD`.
 

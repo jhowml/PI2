@@ -40,15 +40,18 @@ model Cardapio {
 }
 
 model Pedido {
-  id         Int          @id @default(autoincrement())
-  dataPedido DateTime     @default(now()) @map("data_pedido")
-  status     StatusPedido @default(PENDENTE)
-  valorTotal Decimal      @map("valor_total") @db.Decimal(10, 2)
-  obs        String?      @db.VarChar(255)
-  clienteId  Int          @map("cliente_id")
-  cliente    Cliente      @relation(fields: [clienteId], references: [id])
-  itens      ItemPedido[]
-  pagamento  Pagamento?
+  id          Int          @id @default(autoincrement())
+  dataPedido  DateTime     @default(now()) @map("data_pedido")
+  status      StatusPedido @default(PENDENTE)
+  tipoEntrega TipoEntrega  @map("tipo_entrega")
+  taxaEntrega Decimal      @default(0) @map("taxa_entrega") @db.Decimal(10, 2)
+  desconto    Decimal      @default(0) @db.Decimal(10, 2)
+  valorTotal  Decimal      @map("valor_total") @db.Decimal(10, 2)
+  obs         String?      @db.VarChar(255)
+  clienteId   Int          @map("cliente_id")
+  cliente     Cliente      @relation(fields: [clienteId], references: [id])
+  itens       ItemPedido[]
+  pagamento   Pagamento?
 
   @@index([clienteId])
   @@index([status])
@@ -87,6 +90,11 @@ enum StatusPedido {
   PREPARANDO
   ENTREGUE
   CANCELADO
+}
+
+enum TipoEntrega {
+  ENTREGA
+  RETIRADA
 }
 
 enum FormaPagamento {
