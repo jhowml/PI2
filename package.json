@@ -1,0 +1,46 @@
+{
+  "name": "soberania-digital-api",
+  "version": "0.1.0",
+  "description": "API REST de gestão interna de pedidos, cardápio e clientes para estabelecimentos alimentícios do Guarujá (Projeto Integrador II - UNIVESP)",
+  "main": "dist/server.js",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "build": "tsc && tsc-alias",
+    "start": "node dist/server.js",
+    "postinstall": "prisma generate",
+    "test": "vitest",
+    "test:coverage": "vitest --coverage",
+    "db:generate": "tsx scripts/prisma-env.ts generate",
+    "db:migrate": "tsx scripts/prisma-env.ts migrate dev",
+    "db:migrate:deploy": "tsx scripts/prisma-env.ts migrate deploy",
+    "db:studio": "tsx scripts/prisma-env.ts studio",
+    "db:seed": "tsx prisma/seed.ts"
+  },
+  "dependencies": {
+    "@prisma/client": "^5.13.0",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^4.17.21",
+    "@types/jsonwebtoken": "^9.0.6",
+    "@types/node": "^20.14.2",
+    "cors": "^2.8.6",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "jsonwebtoken": "^9.0.2",
+    "pino": "^9.1.0",
+    "pino-http": "^10.1.0",
+    "pino-pretty": "^11.0.0",
+    "prisma": "^5.13.0",
+    "tsc-alias": "^1.8.17",
+    "tsx": "^4.15.1",
+    "typescript": "^5.4.5",
+    "zod": "^3.23.6"
+  },
+  "devDependencies": {
+    "@vitest/coverage-v8": "^1.6.0",
+    "supertest": "^7.0.0",
+    "vitest": "^1.6.0"
+  }
+}
