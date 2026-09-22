@@ -243,6 +243,53 @@ As listagens aceitam `page` (padrão `1`) e `pageSize` (padrão `20`, máx. `100
 
 Valores monetários são devolvidos como **string** decimal (ex.: `"18.5"`), para não perder precisão.
 
+### Clientes
+
+| Método | Rota | Descrição |
+|--------|------|-----------|
+| `GET` | `/api/clientes` | Lista clientes (paginado) |
+| `GET` | `/api/clientes/:id` | Detalha um cliente (`404` se não existir) |
+| `POST` | `/api/clientes` | Cadastra um cliente |
+
+**Query — `GET /api/clientes`:** `page`, `pageSize`, `search` (busca por nome, sem diferenciar maiúsculas/minúsculas, ou por trecho do telefone).
+
+**Body — `POST /api/clientes`:**
+
+| Campo | Tipo | Obrigatório | Regras |
+|-------|------|-------------|--------|
+| `nome` | string | sim | 1–100 caracteres |
+| `telefone` | string | sim | DDD + número, 10 ou 11 dígitos; máscara é removida (`(13) 99123-4567` → `13991234567`) |
+| `obs` | string | não | até 255 caracteres |
+| `cep` | string | não | 8 dígitos, com ou sem hífen; salvo sem hífen |
+| `logradouro` | string | não | até 150 caracteres |
+| `numero` | string | não | até 10 caracteres |
+| `complemento` | string | não | até 60 caracteres |
+| `bairro` | string | não | até 80 caracteres |
+| `cidade` | string | não | até 80 caracteres |
+| `uf` | string | não | 2 letras; convertida para maiúsculas |
+
+Campos opcionais enviados como string vazia são ignorados. O endereço é opcional para permitir clientes de retirada no balcão.
+
+### CEP
+
+| Método | Rota | Descrição |
+|--------|------|-----------|
+| `GET` | `/api/cep/:cep` | Consulta o endereço na API pública [ViaCEP](https://viacep.com.br) para autopreenchimento do cadastro de clientes |
+
+Aceita o CEP com ou sem hífen (`11410-000` ou `11410000`).
+
+```json
+// GET /api/cep/11410-000 → 200
+{ "cep": "11410000", "logradouro": "...", "bairro": "Pitangueiras", "cidade": "Guarujá", "uf": "SP" }
+```
+
+| Status | Quando |
+|--------|--------|
+| `422` | CEP em formato inválido |
+| `404` | CEP inexistente (ViaCEP responde `{"erro": true}`) |
+| `502` | ViaCEP respondeu com erro HTTP ou em formato inesperado |
+| `503` | ViaCEP fora do ar, falha de rede ou tempo limite (5 s) excedido |
+
 ---
 
 ## Testes
