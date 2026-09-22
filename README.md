@@ -16,6 +16,7 @@ A aplicação faz a **gestão interna** de estabelecimentos alimentícios do Gua
 - [Configuração do ambiente local](#configuração-do-ambiente-local)
 - [Scripts](#scripts)
 - [Arquitetura](#arquitetura)
+- [Modelo de dados](#modelo-de-dados)
 - [Endpoints](#endpoints)
 - [Testes](#testes)
 - [Problemas comuns](#problemas-comuns)
@@ -81,6 +82,8 @@ npm run db:migrate
 npm run db:seed
 ```
 
+Insere itens de cardápio e clientes com endereços **fictícios** do Guarujá. O seed só insere dados em tabelas vazias, então pode ser executado mais de uma vez.
+
 ### 5. Subir a API
 
 ```bash
@@ -139,6 +142,29 @@ Requisição HTTP
 - Erros de domínio são lançados como subclasses de `AppError` e formatados pelo middleware global.
 
 Detalhes e convenções de código estão em [`CLAUDE.md`](./CLAUDE.md).
+
+---
+
+## Modelo de dados
+
+| Entidade | Tabela | Campos principais |
+|----------|--------|-------------------|
+| **Cliente** | `clientes` | `nome`, `telefone`, `obs`, `cep`, `logradouro`, `numero`, `complemento`, `bairro`, `cidade`, `uf` |
+| **Cardapio** | `cardapio` | `nome`, `descricao`, `preco`, `categoria`, `disponivel`, `deletedAt` (exclusão lógica) |
+| **Pedido** | `pedidos` | `dataPedido`, `status`, `valorTotal`, `obs`, `clienteId` |
+| **ItemPedido** | `itens_pedido` | `quantidade`, `precoUnitario` (preço no momento do pedido), `pedidoId`, `cardapioId` |
+| **Pagamento** | `pagamentos` | `forma`, `status`, `valor`, `dataPagamento`, `pedidoId` (1-para-1 com o pedido) |
+
+**Status do pedido:**
+
+```
+PENDENTE → CONFIRMADO → PREPARANDO → ENTREGUE
+    └──────────┴─────────────┴──────→ CANCELADO
+```
+
+**Formas de pagamento:** `DINHEIRO` · `PIX` · `CARTAO_CREDITO` · `CARTAO_DEBITO`
+
+**Status do pagamento:** `PENDENTE` · `PAGO` · `ESTORNADO`
 
 ---
 
