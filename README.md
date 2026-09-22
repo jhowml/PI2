@@ -255,7 +255,9 @@ Valores monetários são devolvidos como **string** decimal (ex.: `"18.5"`), par
 | `GET` | `/api/clientes/:id` | Detalha um cliente (`404` se não existir) |
 | `POST` | `/api/clientes` | Cadastra um cliente |
 
-**Query — `GET /api/clientes`:** `page`, `pageSize`, `search` (busca por nome, sem diferenciar maiúsculas/minúsculas, ou por trecho do telefone).
+**Query — `GET /api/clientes`:** `page`, `pageSize`, `search`.
+
+A busca aceita **telefone, endereço ou nome** (ex.: `13 99123`, `dom pedro 350`, `enseada`). O texto é dividido em termos, e **cada termo** precisa aparecer em algum campo: nome, logradouro, número, complemento, bairro ou cidade (sem diferenciar maiúsculas/minúsculas), ou, pelos dígitos, telefone e CEP.
 
 **Body — `POST /api/clientes`:**
 
