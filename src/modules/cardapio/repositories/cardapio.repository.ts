@@ -23,3 +23,7 @@ export async function listCardapio(query: ListCardapioDTO) {
 export async function createItemCardapio(data: CreateItemCardapioDTO) {
   return prisma.cardapio.create({ data });
 }
+
+export async function findCardapioItensByIds(ids: number[]) {
+  return prisma.cardapio.findMany({ where: { id: { in: ids }, deletedAt: null } });
+}

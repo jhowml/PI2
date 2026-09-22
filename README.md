@@ -112,13 +112,14 @@ curl -sS http://localhost:3000/health
 | `npm start` | Executa a versão compilada |
 | `npm test` | Roda os testes unitários (Vitest) |
 | `npm run test:coverage` | Gera relatório de cobertura |
+| `npm run db:validate` | Valida o `schema.prisma` |
 | `npm run db:generate` | Regenera o Prisma Client após mudanças no schema |
 | `npm run db:migrate` | Cria/aplica migrations em desenvolvimento |
 | `npm run db:migrate:deploy` | Aplica migrations em produção/CI |
 | `npm run db:studio` | Abre o Prisma Studio |
 | `npm run db:seed` | Popula dados de exemplo |
 
-Os scripts `db:*` montam o `DATABASE_URL` a partir das variáveis `DB_*` quando ele não está definido.
+Os scripts `db:*` montam o `DATABASE_URL` a partir das variáveis `DB_*` quando ele não está definido. Comandos `npx prisma ...` executados diretamente exigem `DATABASE_URL` no ambiente.
 
 ---
 
@@ -289,6 +290,45 @@ Aceita o CEP com ou sem hífen (`11410-000` ou `11410000`).
 | `404` | CEP inexistente (ViaCEP responde `{"erro": true}`) |
 | `502` | ViaCEP respondeu com erro HTTP ou em formato inesperado |
 | `503` | ViaCEP fora do ar, falha de rede ou tempo limite (5 s) excedido |
+
+### Pedidos
+
+| Método | Rota | Descrição |
+|--------|------|-----------|
+| `GET` | `/api/pedidos` | Lista pedidos, do mais recente para o mais antigo (paginado), com cliente e itens |
+| `GET` | `/api/pedidos/:id` | Detalha um pedido com cliente e itens (`404` se não existir) |
+| `POST` | `/api/pedidos` | Registra um pedido com um ou mais itens do cardápio |
+
+**Query — `GET /api/pedidos`:** `page`, `pageSize`, `status` (`PENDENTE`, `CONFIRMADO`, `PREPARANDO`, `ENTREGUE` ou `CANCELADO`).
+
+**Body — `POST /api/pedidos`:**
+
+| Campo | Tipo | Obrigatório | Regras |
+|-------|------|-------------|--------|
+| `clienteId` | number | sim | cliente existente |
+| `itens` | array | sim | 1 a 100 itens, sem repetir o mesmo `cardapioId` |
+| `itens[].cardapioId` | number | sim | item existente, não excluído e disponível |
+| `itens[].quantidade` | number | sim | inteiro de 1 a 999 |
+| `obs` | string | não | até 255 caracteres |
+
+```json
+// POST /api/pedidos
+{
+  "clienteId": 1,
+  "itens": [
+    { "cardapioId": 2, "quantidade": 3 },
+    { "cardapioId": 4, "quantidade": 2 }
+  ],
+  "obs": "Sem cebola"
+}
+```
+
+Regras aplicadas pela API:
+
+- O pedido é criado com status `PENDENTE`.
+- O `precoUnitario` de cada item é o **preço atual** do cardápio, gravado no pedido; mudanças futuras de preço não alteram pedidos já registrados.
+- O `valorTotal` é calculado pela API (soma de `precoUnitario × quantidade`) e não é aceito no corpo da requisição.
+- Cliente inexistente ou item do cardápio inexistente/excluído → `404`; item marcado como indisponível → `409`.
 
 ---
 

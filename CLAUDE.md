@@ -240,6 +240,7 @@ npm start                 # Run compiled output (production)
 npm test                  # Run unit tests with Vitest
 npm run test:coverage     # Generate coverage report
 
+npm run db:validate       # Validate schema.prisma
 npm run db:generate       # Regenerate Prisma client after schema changes
 npm run db:migrate        # Apply migrations (development)
 npm run db:migrate:deploy # Apply migrations (production / CI)

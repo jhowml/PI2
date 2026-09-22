@@ -10,6 +10,7 @@ import authRoutes from './modules/auth/auth.routes';
 import cardapioRoutes from './modules/cardapio/cardapio.routes';
 import clienteRoutes from './modules/clientes/cliente.routes';
 import cepRoutes from './modules/cep/cep.routes';
+import pedidoRoutes from './modules/pedidos/pedido.routes';
 
 const app = express();
 app.use(cors({ origin: env.ALLOWED_ORIGINS.split(',') }));
@@ -54,5 +55,6 @@ app.use('/api/auth', authRoutes);
 app.use('/api/cardapio', authenticate, cardapioRoutes);
 app.use('/api/clientes', authenticate, clienteRoutes);
 app.use('/api/cep', authenticate, cepRoutes);
+app.use('/api/pedidos', authenticate, pedidoRoutes);
 app.use(errorHandler);
 export { app };
