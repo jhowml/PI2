@@ -8,13 +8,18 @@ import { ConflictError, NotFoundError } from '@/shared/errors/AppError';
 const EDITABLE_STATUSES: StatusPedido[] = [StatusPedido.CONFIRMADO];
 
 export async function updatePedido(id: number, dto: UpdatePedidoBodyDTO, ports: UpdatePedidoPorts) {
-  const { findPedidoById, findCardapioItensByIds, updatePedido: updatePedidoRepository } = ports;
+  const { findPedidoById, findCardapioItensByIds, findPagamentoByPedidoId, updatePedido: updatePedidoRepository } = ports;
 
   const pedidoAtual = await findPedidoById(id);
   if (!pedidoAtual) throw new NotFoundError('Pedido');
 
   if (!EDITABLE_STATUSES.includes(pedidoAtual.status)) {
     throw new ConflictError(`Pedidos com status ${pedidoAtual.status} não podem ser editados.`);
+  }
+
+  const pagamento = await findPagamentoByPedidoId(id);
+  if (pagamento?.status === 'PAGO') {
+    throw new ConflictError('Estorne o pagamento antes de editar o pedido.');
   }
 
   const itensCardapio = await findCardapioItensByIds(dto.itens.map((item) => item.cardapioId));
@@ -31,5 +36,6 @@ export async function updatePedido(id: number, dto: UpdatePedidoBodyDTO, ports: 
     valorTotal,
     obs: dto.obs,
     itens,
+    syncPagamentoValor: pagamento?.status === 'PENDENTE',
   });
 }

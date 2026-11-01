@@ -3,11 +3,11 @@ import { Request, Response, NextFunction } from 'express';
 import { ZodError } from 'zod';
 import { updatePedidoStatusController } from './update-pedido-status.controller';
 
-vi.mock('../../services/update-pedido-status/update-pedido-status.service', () => ({
+vi.mock('@/composition/pedido-status-update', () => ({
   updatePedidoStatus: vi.fn(),
 }));
 
-import { updatePedidoStatus } from '../../services/update-pedido-status/update-pedido-status.service';
+import { updatePedidoStatus } from '@/composition/pedido-status-update';
 
 function makeMocks(id: string, body: unknown = { status: 'PREPARANDO' }) {
   const req = { params: { id }, body } as unknown as Request;

@@ -17,6 +17,7 @@ function makePorts(overrides: Partial<UpdatePedidoPorts> = {}): UpdatePedidoPort
   return {
     findPedidoById: vi.fn().mockResolvedValue(makePedidoAtual()),
     findCardapioItensByIds: vi.fn().mockResolvedValue([makeItemCardapio(2, '15.00'), makeItemCardapio(4, '6.00')]),
+    findPagamentoByPedidoId: vi.fn().mockResolvedValue(null),
     updatePedido: vi.fn().mockResolvedValue({ id: 1 }),
     ...overrides,
   };
@@ -83,5 +84,36 @@ describe('updatePedido service', () => {
     });
 
     await expect(updatePedido(1, validDto, ports)).rejects.toThrow(ConflictError);
+  });
+
+  it('should throw ConflictError and not persist when the pagamento is PAGO', async () => {
+    const ports = makePorts({ findPagamentoByPedidoId: vi.fn().mockResolvedValue({ status: 'PAGO' }) });
+
+    await expect(updatePedido(1, validDto, ports)).rejects.toThrow('Estorne o pagamento antes de editar o pedido.');
+    expect(ports.updatePedido).not.toHaveBeenCalled();
+    expect(ports.findCardapioItensByIds).not.toHaveBeenCalled();
+  });
+
+  it('should sync the pagamento valor when the pagamento is PENDENTE', async () => {
+    const ports = makePorts({ findPagamentoByPedidoId: vi.fn().mockResolvedValue({ status: 'PENDENTE' }) });
+
+    await updatePedido(1, validDto, ports);
+
+    expect(updatedInput(ports).syncPagamentoValor).toBe(true);
+  });
+
+  it('should not sync the pagamento valor when there is no pagamento', async () => {
+    const ports = makePorts();
+
+    await updatePedido(1, validDto, ports);
+
+    expect(updatedInput(ports).syncPagamentoValor).toBe(false);
+  });
+
+  it('should throw ConflictError when the pedido does not allow editing, before checking the pagamento', async () => {
+    const ports = makePorts({ findPedidoById: vi.fn().mockResolvedValue(makePedidoAtual({ status: 'ENTREGUE' })) });
+
+    await expect(updatePedido(1, validDto, ports)).rejects.toThrow(ConflictError);
+    expect(ports.findPagamentoByPedidoId).not.toHaveBeenCalled();
   });
 });

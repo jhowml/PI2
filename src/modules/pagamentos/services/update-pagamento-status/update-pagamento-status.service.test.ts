@@ -1,86 +1,93 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { updatePagamentoStatus } from './update-pagamento-status.service';
 import { ConflictError, NotFoundError } from '@/shared/errors/AppError';
+import type { UpdatePagamentoStatusPorts } from '@/composition/pagamento-status-update.ports';
 
-vi.mock('@/modules/pagamentos/repositories/pagamento.repository', () => ({
-  findPagamentoByPedidoId: vi.fn(),
-  updatePagamentoStatus: vi.fn(),
-}));
-
-import {
-  findPagamentoByPedidoId,
-  updatePagamentoStatus as updatePagamentoStatusRepo,
-} from '@/modules/pagamentos/repositories/pagamento.repository';
+function makePorts(overrides: Partial<UpdatePagamentoStatusPorts> = {}): UpdatePagamentoStatusPorts {
+  return {
+    findPedidoById: vi.fn().mockResolvedValue({ id: 7, status: 'ENTREGUE' }),
+    findPagamentoByPedidoId: vi.fn().mockResolvedValue(null),
+    updatePagamentoStatus: vi.fn().mockResolvedValue({ pedidoId: 7, status: 'PAGO' }),
+    ...overrides,
+  };
+}
 
 describe('updatePagamentoStatus service', () => {
-  beforeEach(() => { vi.clearAllMocks(); });
-
   it('should throw NotFoundError when the pedido has no pagamento registered', async () => {
-    vi.mocked(findPagamentoByPedidoId).mockResolvedValue(null);
+    const ports = makePorts({ findPagamentoByPedidoId: vi.fn().mockResolvedValue(null) });
 
-    await expect(updatePagamentoStatus(999, { status: 'PAGO' })).rejects.toThrow(NotFoundError);
-    expect(updatePagamentoStatusRepo).not.toHaveBeenCalled();
+    await expect(updatePagamentoStatus(999, { status: 'PAGO' }, ports)).rejects.toThrow(NotFoundError);
+    expect(ports.updatePagamentoStatus).not.toHaveBeenCalled();
   });
 
   it('should move PENDENTE to PAGO and set dataPagamento to now', async () => {
-    vi.mocked(findPagamentoByPedidoId).mockResolvedValue({
-      pedidoId: 7,
-      status: 'PENDENTE',
-      dataPagamento: null,
-    } as never);
-    vi.mocked(updatePagamentoStatusRepo).mockResolvedValue({ pedidoId: 7, status: 'PAGO' } as never);
+    const ports = makePorts({
+      findPagamentoByPedidoId: vi.fn().mockResolvedValue({ pedidoId: 7, status: 'PENDENTE', dataPagamento: null }),
+    });
 
-    await updatePagamentoStatus(7, { status: 'PAGO' });
+    await updatePagamentoStatus(7, { status: 'PAGO' }, ports);
 
-    expect(updatePagamentoStatusRepo).toHaveBeenCalledWith(7, 'PAGO', expect.any(Date));
+    expect(ports.updatePagamentoStatus).toHaveBeenCalledWith(7, 'PAGO', expect.any(Date));
+    expect(ports.findPedidoById).not.toHaveBeenCalled();
   });
 
   it('should move PAGO to ESTORNADO and keep the original dataPagamento', async () => {
     const dataPagamento = new Date('2026-10-01T12:00:00Z');
-    vi.mocked(findPagamentoByPedidoId).mockResolvedValue({
-      pedidoId: 7,
-      status: 'PAGO',
-      dataPagamento,
-    } as never);
-    vi.mocked(updatePagamentoStatusRepo).mockResolvedValue({ pedidoId: 7, status: 'ESTORNADO' } as never);
+    const ports = makePorts({
+      findPagamentoByPedidoId: vi.fn().mockResolvedValue({ pedidoId: 7, status: 'PAGO', dataPagamento }),
+    });
 
-    await updatePagamentoStatus(7, { status: 'ESTORNADO' });
+    await updatePagamentoStatus(7, { status: 'ESTORNADO' }, ports);
 
-    expect(updatePagamentoStatusRepo).toHaveBeenCalledWith(7, 'ESTORNADO', dataPagamento);
+    expect(ports.updatePagamentoStatus).toHaveBeenCalledWith(7, 'ESTORNADO', dataPagamento);
   });
 
   it('should throw ConflictError when trying to go from PENDENTE to ESTORNADO', async () => {
-    vi.mocked(findPagamentoByPedidoId).mockResolvedValue({
-      pedidoId: 7,
-      status: 'PENDENTE',
-      dataPagamento: null,
-    } as never);
+    const ports = makePorts({
+      findPagamentoByPedidoId: vi.fn().mockResolvedValue({ pedidoId: 7, status: 'PENDENTE', dataPagamento: null }),
+    });
 
-    await expect(updatePagamentoStatus(7, { status: 'ESTORNADO' })).rejects.toThrow(ConflictError);
-    expect(updatePagamentoStatusRepo).not.toHaveBeenCalled();
+    await expect(updatePagamentoStatus(7, { status: 'ESTORNADO' }, ports)).rejects.toThrow(ConflictError);
+    expect(ports.updatePagamentoStatus).not.toHaveBeenCalled();
   });
 
-  it('should move ESTORNADO back to PAGO and refresh dataPagamento', async () => {
-    vi.mocked(findPagamentoByPedidoId).mockResolvedValue({
-      pedidoId: 7,
-      status: 'ESTORNADO',
-      dataPagamento: new Date('2026-10-01T12:00:00Z'),
-    } as never);
-    vi.mocked(updatePagamentoStatusRepo).mockResolvedValue({ pedidoId: 7, status: 'PAGO' } as never);
+  it('should move ESTORNADO back to PAGO and refresh dataPagamento when the pedido is not CANCELADO', async () => {
+    const ports = makePorts({
+      findPedidoById: vi.fn().mockResolvedValue({ id: 7, status: 'ENTREGUE' }),
+      findPagamentoByPedidoId: vi.fn().mockResolvedValue({
+        pedidoId: 7,
+        status: 'ESTORNADO',
+        dataPagamento: new Date('2026-10-01T12:00:00Z'),
+      }),
+    });
 
-    await updatePagamentoStatus(7, { status: 'PAGO' });
+    await updatePagamentoStatus(7, { status: 'PAGO' }, ports);
 
-    expect(updatePagamentoStatusRepo).toHaveBeenCalledWith(7, 'PAGO', expect.any(Date));
+    expect(ports.updatePagamentoStatus).toHaveBeenCalledWith(7, 'PAGO', expect.any(Date));
   });
 
   it('should throw ConflictError when trying to go from ESTORNADO to ESTORNADO', async () => {
-    vi.mocked(findPagamentoByPedidoId).mockResolvedValue({
-      pedidoId: 7,
-      status: 'ESTORNADO',
-      dataPagamento: new Date(),
-    } as never);
+    const ports = makePorts({
+      findPagamentoByPedidoId: vi.fn().mockResolvedValue({ pedidoId: 7, status: 'ESTORNADO', dataPagamento: new Date() }),
+    });
 
-    await expect(updatePagamentoStatus(7, { status: 'ESTORNADO' })).rejects.toThrow(ConflictError);
-    expect(updatePagamentoStatusRepo).not.toHaveBeenCalled();
+    await expect(updatePagamentoStatus(7, { status: 'ESTORNADO' }, ports)).rejects.toThrow(ConflictError);
+    expect(ports.updatePagamentoStatus).not.toHaveBeenCalled();
+  });
+
+  it('should throw ConflictError when trying to pay again a CANCELADO pedido after an estorno', async () => {
+    const ports = makePorts({
+      findPedidoById: vi.fn().mockResolvedValue({ id: 7, status: 'CANCELADO' }),
+      findPagamentoByPedidoId: vi.fn().mockResolvedValue({
+        pedidoId: 7,
+        status: 'ESTORNADO',
+        dataPagamento: new Date('2026-10-01T12:00:00Z'),
+      }),
+    });
+
+    await expect(updatePagamentoStatus(7, { status: 'PAGO' }, ports)).rejects.toThrow(
+      'Não é possível pagar novamente um pedido cancelado.',
+    );
+    expect(ports.updatePagamentoStatus).not.toHaveBeenCalled();
   });
 });

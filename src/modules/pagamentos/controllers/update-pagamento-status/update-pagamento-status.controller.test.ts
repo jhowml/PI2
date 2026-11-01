@@ -3,11 +3,11 @@ import { Request, Response, NextFunction } from 'express';
 import { ZodError } from 'zod';
 import { updatePagamentoStatusController } from './update-pagamento-status.controller';
 
-vi.mock('../../services/update-pagamento-status/update-pagamento-status.service', () => ({
+vi.mock('@/composition/pagamento-status-update', () => ({
   updatePagamentoStatus: vi.fn(),
 }));
 
-import { updatePagamentoStatus } from '../../services/update-pagamento-status/update-pagamento-status.service';
+import { updatePagamentoStatus } from '@/composition/pagamento-status-update';
 
 function makeMocks(pedidoId: string, body: unknown = { status: 'PAGO' }) {
   const req = { params: { pedidoId }, body } as unknown as Request;

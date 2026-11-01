@@ -65,11 +65,18 @@ export type PedidoUpdateInput = {
   valorTotal: Prisma.Decimal;
   obs?: string;
   itens: ItemPedidoInsertInput[];
+  /** When true, also syncs the linked (PENDENTE) pagamento's valor to the new valorTotal, in the same transaction. */
+  syncPagamentoValor?: boolean;
 };
 
 export async function updatePedido(id: number, input: PedidoUpdateInput) {
   return prisma.$transaction(async (tx) => {
     await tx.itemPedido.deleteMany({ where: { pedidoId: id } });
+
+    if (input.syncPagamentoValor) {
+      await tx.pagamento.update({ where: { pedidoId: id }, data: { valor: input.valorTotal } });
+    }
+
     return tx.pedido.update({
       where: { id },
       data: {

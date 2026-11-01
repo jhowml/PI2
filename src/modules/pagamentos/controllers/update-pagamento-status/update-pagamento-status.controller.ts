@@ -3,7 +3,7 @@ import {
   updatePagamentoStatusParamsSchema,
   updatePagamentoStatusBodySchema,
 } from '../../dtos/update-pagamento-status/update-pagamento-status.dto';
-import { updatePagamentoStatus } from '../../services/update-pagamento-status/update-pagamento-status.service';
+import { updatePagamentoStatus } from '@/composition/pagamento-status-update';
 
 export async function updatePagamentoStatusController(req: Request, res: Response, next: NextFunction) {
   try {

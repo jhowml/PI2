@@ -3,7 +3,7 @@ import {
   updatePedidoStatusBodySchema,
   updatePedidoStatusParamsSchema,
 } from '../../dtos/update-pedido-status/update-pedido-status.dto';
-import { updatePedidoStatus } from '../../services/update-pedido-status/update-pedido-status.service';
+import { updatePedidoStatus } from '@/composition/pedido-status-update';
 
 export async function updatePedidoStatusController(req: Request, res: Response, next: NextFunction) {
   try {
