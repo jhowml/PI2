@@ -19,6 +19,7 @@ A aplicação faz a **gestão interna** de estabelecimentos alimentícios do Gua
 - [Modelo de dados](#modelo-de-dados)
 - [Endpoints](#endpoints)
 - [Testes](#testes)
+- [Infraestrutura (produção)](#infraestrutura-produção)
 - [Problemas comuns](#problemas-comuns)
 
 ---
@@ -460,6 +461,72 @@ npm run test:coverage
 ```
 
 Os testes unitários ficam ao lado do arquivo testado (`<nome>.test.ts`) e cobrem as camadas de **controller** e **service**. Dependências são mockadas nas fronteiras dos módulos; chamadas ao ViaCEP usam `fetch` mockado, sem acesso à internet.
+
+### Testes de integração
+
+Ficam em `src/integration-tests/*.integration.test.ts` e sobem a aplicação de verdade (via `supertest(app)`, sem abrir porta) contra um **PostgreSQL de teste real** — não usam mocks de banco. Exercitam login/autenticação, o fluxo completo de um pedido (cardápio → cliente → pedido → edição → status → pagamento → dashboard) e as regras de negócio (itens indisponíveis/inexistentes, desconto inválido, transições de status, consistência pedido↔pagamento).
+
+Suba um Postgres **separado** do de desenvolvimento (porta diferente, banco descartável — os testes fazem `TRUNCATE` nele a cada teste):
+
+```bash
+docker run -d \
+  --name soberania-digital-test-db \
+  -e POSTGRES_USER=postgres \
+  -e POSTGRES_PASSWORD=postgres \
+  -e POSTGRES_DB=soberania_digital_test \
+  -p 5434:5432 \
+  postgres:16
+```
+
+Defina `TEST_DATABASE_URL` (no `.env` ou na linha de comando) e rode:
+
+```bash
+TEST_DATABASE_URL="postgresql://postgres:postgres@localhost:5434/soberania_digital_test" npm run test:integration
+```
+
+O comando aplica as migrations automaticamente no banco de teste antes de rodar. **Nunca** aponte `TEST_DATABASE_URL` para o banco de desenvolvimento ou produção — as tabelas são truncadas entre cada teste.
+
+---
+
+## Infraestrutura (produção)
+
+| Camada | Serviço | URL |
+|---|---|---|
+| Banco de dados | [Neon](https://neon.tech) (PostgreSQL serverless) | — |
+| API | [Render](https://render.com) (Web Service) | https://pi2-82np.onrender.com |
+| Front-end | [Vercel](https://vercel.com) | https://pi-2-front.vercel.app |
+
+Todos no plano gratuito — sem custo para o estabelecimento, conforme o escopo do projeto.
+
+### Variáveis de ambiente — API (Render)
+
+| Variável | Valor |
+|---|---|
+| `DATABASE_URL` | connection string do Neon (tem prioridade sobre as `DB_*`) |
+| `NODE_ENV` | `production` |
+| `JWT_SECRET` | string aleatória forte, mínimo 10 caracteres |
+| `APP_USERNAME` / `APP_PASSWORD` | credenciais do usuário único da aplicação |
+| `ALLOWED_ORIGINS` | **precisa incluir** `https://pi-2-front.vercel.app` (a URL do front-end em produção) |
+
+O **Start Command** no Render aplica as migrations antes de subir o servidor:
+
+```bash
+npm run db:migrate:deploy && npm start
+```
+
+### Variáveis de ambiente — Front-end (Vercel)
+
+| Variável | Valor |
+|---|---|
+| `NEXT_PUBLIC_API_URL` | `https://pi2-82np.onrender.com` (sem barra no final) |
+
+Por ser uma variável `NEXT_PUBLIC_*`, o Next.js grava o valor no build — qualquer alteração exige um novo deploy (Vercel → Deployments → "⋯" → Redeploy, sem usar o cache de build) para ter efeito.
+
+### Pegadinhas já encontradas (documentadas para não repetir)
+
+- Valor de `ALLOWED_ORIGINS`/`DATABASE_URL` colado com espaço ou quebra de linha a mais faz a comparação de CORS falhar silenciosamente (sem erro visível) — o código já aplica `.trim()` no `ALLOWED_ORIGINS` por causa disso.
+- Uma barra `/` sobrando no final de `NEXT_PUBLIC_API_URL` vira `//api/...` nas chamadas (404 em vez do JSON de erro esperado) — o front-end já remove barras finais automaticamente, mas evite deixá-la lá mesmo assim.
+- `DATABASE_URL` colado com um caractere extra no início (ex.: `<postgresql://...`) quebra a validação do Prisma com uma mensagem genérica sobre "protocolo inválido" — confira o valor exato salvo, não só o que foi copiado.
 
 ---
 

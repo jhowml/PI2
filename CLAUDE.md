@@ -56,12 +56,14 @@ src/
 │   ├── errors/           # AppError base class and typed error subclasses
 │   ├── middleware/       # Express middleware (error handler, auth)
 │   └── types/            # Shared TypeScript types (pagination)
+├── integration-tests/    # supertest(app) against a real test PostgreSQL — npm run test:integration
 ├── app.ts                # Express app setup — registers middleware and routes
 └── server.ts             # Entry point — starts HTTP server, handles graceful shutdown
 
 prisma/
 ├── schema.prisma         # Data model
-├── seed.ts               # Seeds development data
+├── seed.ts               # Seeds development data (small, deterministic — the contract of `npm run db:seed`)
+├── seed-outubro.ts        # Optional: fills october with randomized pedidos/pagamentos for demos (run manually with tsx)
 └── migrations/           # Versioned migration SQL files
 
 scripts/
@@ -270,6 +272,7 @@ npm run build             # Compile TypeScript to dist/
 npm start                 # Run compiled output (production)
 npm test                  # Run unit tests with Vitest
 npm run test:coverage     # Generate coverage report
+npm run test:integration  # Run integration tests (supertest + a real TEST_DATABASE_URL)
 
 npm run db:validate       # Validate schema.prisma
 npm run db:generate       # Regenerate Prisma client after schema changes
@@ -289,3 +292,10 @@ Framework: **Vitest** + **Supertest**
 - Test both the **service** and **controller** layers
 - Mock dependencies at module boundaries (mock the repository when testing the service; mock the service when testing the controller; pass fake ports to services that use composition; mock `fetch` when testing gateways)
 - Run `npm test` before pushing
+
+### Integration tests
+
+- Live in `src/integration-tests/*.integration.test.ts`, run with `npm run test:integration` (separate Vitest config: `vitest.config.integration.ts`) — **excluded** from the default `npm test`/`vitest.config.ts`.
+- Drive the real `app` (from `src/app.ts`) through `supertest` — no mocked repositories; `TEST_DATABASE_URL` must point at a real, disposable PostgreSQL (never the dev or prod database — the suite `TRUNCATE`s every table after each test).
+- `global-setup.ts` applies `prisma migrate deploy` once per run; `setup.ts` loads `.env` (the app normally gets this from `server.ts`, which integration tests bypass), guards that `DATABASE_URL` really is `TEST_DATABASE_URL` before allowing any test to run, and truncates all tables in `afterEach`.
+- CI (`.github/workflows/ci.yml`) runs this in a separate job against a `postgres:16` service container.

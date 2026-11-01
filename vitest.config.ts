@@ -9,5 +9,6 @@ export default defineConfig({
   },
   test: {
     globals: false,
+    exclude: ['**/node_modules/**', '**/dist/**', 'src/integration-tests/**'],
   },
 });
