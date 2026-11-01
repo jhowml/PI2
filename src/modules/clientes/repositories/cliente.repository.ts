@@ -3,6 +3,7 @@ import { prisma } from '@/config/database';
 import { paginate } from '@/shared/types/pagination';
 import { ListClientesDTO } from '@/modules/clientes/dtos/list-clientes/list-clientes.types';
 import { CreateClienteDTO } from '@/modules/clientes/dtos/create-cliente/create-cliente.types';
+import { UpdateClienteBodyDTO } from '@/modules/clientes/dtos/update-cliente/update-cliente.types';
 
 const TEXT_SEARCH_FIELDS = ['nome', 'logradouro', 'numero', 'complemento', 'bairro', 'cidade'] as const;
 const DIGIT_SEARCH_FIELDS = ['telefone', 'cep'] as const;
@@ -42,4 +43,22 @@ export async function createCliente(data: CreateClienteDTO) {
 
 export async function findClienteById(id: number) {
   return prisma.cliente.findUnique({ where: { id } });
+}
+
+export async function updateCliente(id: number, data: UpdateClienteBodyDTO) {
+  return prisma.cliente.update({
+    where: { id },
+    data: {
+      nome: data.nome,
+      telefone: data.telefone,
+      obs: data.obs ?? null,
+      cep: data.cep ?? null,
+      logradouro: data.logradouro ?? null,
+      numero: data.numero ?? null,
+      complemento: data.complemento ?? null,
+      bairro: data.bairro ?? null,
+      cidade: data.cidade ?? null,
+      uf: data.uf ?? null,
+    },
+  });
 }
