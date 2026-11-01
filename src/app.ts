@@ -11,6 +11,8 @@ import cardapioRoutes from './modules/cardapio/cardapio.routes';
 import clienteRoutes from './modules/clientes/cliente.routes';
 import cepRoutes from './modules/cep/cep.routes';
 import pedidoRoutes from './modules/pedidos/pedido.routes';
+import pagamentoRoutes from './modules/pagamentos/pagamento.routes';
+import dashboardRoutes from './modules/dashboard/dashboard.routes';
 
 const app = express();
 app.use(cors({ origin: env.ALLOWED_ORIGINS.split(',') }));
@@ -56,5 +58,7 @@ app.use('/api/cardapio', authenticate, cardapioRoutes);
 app.use('/api/clientes', authenticate, clienteRoutes);
 app.use('/api/cep', authenticate, cepRoutes);
 app.use('/api/pedidos', authenticate, pedidoRoutes);
+app.use('/api/pagamentos', authenticate, pagamentoRoutes);
+app.use('/api/dashboard', authenticate, dashboardRoutes);
 app.use(errorHandler);
 export { app };

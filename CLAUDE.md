@@ -79,6 +79,8 @@ Modules are named after the domain entity they own, in **pt-BR**:
 | `clientes` | Cliente | `/api/clientes` |
 | `cep` | Consulta de CEP (ViaCEP) | `/api/cep` |
 | `pedidos` | Pedido + ItemPedido | `/api/pedidos` |
+| `pagamentos` | Pagamento | `/api/pagamentos` |
+| `dashboard` | Indicadores agregados de pedidos (sem entidade própria; lê `Pedido`, `ItemPedido` e `Cardapio`) | `/api/dashboard` |
 
 ---
 
@@ -146,7 +148,7 @@ All entity names in **pt-BR** (matching the database schema):
 
 - **Cliente** — comprador; possui `nome`, `telefone`, `obs` e endereço estruturado para o ViaCEP (`cep`, `logradouro`, `numero`, `complemento`, `bairro`, `cidade`, `uf`), todos opcionais
 - **Cardapio** — item do cardápio; possui `nome`, `descricao`, `preco`, `categoria`, `disponivel` e `deletedAt` (soft delete)
-- **Pedido** — pertence a um cliente; possui `dataPedido`, `status`, `tipoEntrega` (`ENTREGA` | `RETIRADA`), `taxaEntrega`, `desconto`, `valorTotal`, `obs`; status: `PENDENTE → CONFIRMADO → PREPARANDO → ENTREGUE | CANCELADO`
+- **Pedido** — pertence a um cliente; possui `dataPedido`, `status`, `tipoEntrega` (`ENTREGA` | `RETIRADA`), `taxaEntrega`, `desconto`, `valorTotal`, `obs`; status: `CONFIRMADO → PREPARANDO → ENTREGUE | CANCELADO`. There is **no** `PENDENTE` status: pedidos are always entered directly by staff (there is no customer-facing request screen), so a pedido is `CONFIRMADO` — the DB default — the moment it's registered.
 - **ItemPedido** — item de um pedido; possui `quantidade` e `precoUnitario` (preço do cardápio no momento do pedido); removido em cascata com o pedido
 - **Pagamento** — associado 1-para-1 a um pedido; `forma`: `DINHEIRO`, `PIX`, `CARTAO_CREDITO`, `CARTAO_DEBITO`; `status`: `PENDENTE`, `PAGO`, `ESTORNADO`
 
@@ -163,6 +165,19 @@ valorTotal = Σ (quantidade × precoUnitario of the pedido's ItemPedido) + taxaE
 - `RETIRADA` ⇒ `taxaEntrega = 0` (enforced in the DTO). `taxaEntrega` and `desconto` are never negative.
 - A `desconto` that would make the total negative throws `InvalidDescontoError` (422).
 - **Any future change** to a pedido's itens, `taxaEntrega` or `desconto` (e.g. editing pedidos) must recompute `valorTotal` with `calculatePedidoTotal()` over **all** `ItemPedido` of that pedido, and persist the pedido and its itens in the same transaction.
+- `PATCH /api/pedidos/:id` implements this: it only allows editing while `status` is `CONFIRMADO` (once `PREPARANDO` starts, the kitchen has committed to the order), replaces **all** `ItemPedido` rows (delete + recreate) and recomputes `valorTotal` in one `prisma.$transaction` (`update-pedido.service.ts` / `pedido.repository.ts#updatePedido`). Item lookup/validation (exists, available, snapshot `precoUnitario`) is shared with `create-pedido.service.ts` via `resolve-itens-pedido.ts`, so both use cases enforce the same rules from one place.
+- `PATCH /api/pedidos/:id/status` changes only `status`, one step at a time: `CONFIRMADO → PREPARANDO → ENTREGUE`, with `CANCELADO` reachable from `CONFIRMADO` or `PREPARANDO`. `CONFIRMADO` itself is never a valid target (it's the initial state, not a transition). `ENTREGUE` and `CANCELADO` are terminal. Invalid transitions throw `ConflictError` (`update-pedido-status.service.ts`).
+
+### `Pagamento`
+
+- Created via `POST /api/pagamentos` with only `pedidoId` and `forma`; `valor` is **never** accepted from the request — it is always copied from the pedido's `valorTotal` at the moment of registration, for the same reason `valorTotal` itself is never trusted from the client.
+- A pedido with `status = CANCELADO` cannot receive a pagamento, and a pedido can have at most one (`pedidoId` is `@unique`) — both are enforced in `create-pagamento.service.ts`.
+- `status` transitions via `PATCH /api/pagamentos/:pedidoId`: `PENDENTE → PAGO → ESTORNADO`, and `ESTORNADO → PAGO` to undo an estorno when needed; any other transition (e.g. `PENDENTE → ESTORNADO`) throws `ConflictError`. `dataPagamento` is refreshed to now every time the status moves **to** `PAGO` (including the revert from `ESTORNADO`) and preserved (not overwritten) on `ESTORNADO`.
+- `forma` can be edited independently of `status` via `PATCH /api/pagamentos/:pedidoId/forma`, at any status.
+
+### `dashboard`
+
+`GET /api/dashboard` (optional `from`/`to` query dates) returns aggregated indicadores for the painel: `faturamentoTotal`, `ticketMedio`, `faturamentoPorPeriodo` (grouped by day), `vendasPorDiaSemana` (grouped by weekday — `pedidos`, `faturamento` and `ticketMedio` — always all 7 in `SEGUNDA..DOMINGO` order and zero-filled), `pedidosPorStatus` (all five statuses, zero-filled), `itensMaisVendidos` (top 5 by `quantidade`) and `pagamentosPorForma` (`quantidade` and `valor` per `FormaPagamento`, zero-filled, counting only `PAGO` pagamentos). This is the one module whose repository is not scoped to a single domain entity — it reads `Pedido`, `ItemPedido`, `Cardapio` and `Pagamento` directly for reporting, since it has no table or business rules of its own. All aggregation (`CANCELADO` pedidos excluded from faturamento/ticketMedio, grouping by day/weekday, zero-filling statuses/formas) happens in `get-dashboard.service.ts`, not in the repository.
 
 There is **no** `User` model: authentication uses a single user defined by `APP_USERNAME`/`APP_PASSWORD`.
 

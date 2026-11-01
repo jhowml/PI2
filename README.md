@@ -156,11 +156,11 @@ Detalhes e convenções de código estão em [`CLAUDE.md`](./CLAUDE.md).
 | **ItemPedido** | `itens_pedido` | `quantidade`, `precoUnitario` (preço no momento do pedido), `pedidoId`, `cardapioId` |
 | **Pagamento** | `pagamentos` | `forma`, `status`, `valor`, `dataPagamento`, `pedidoId` (1-para-1 com o pedido) |
 
-**Status do pedido:**
+**Status do pedido:** não existe status `PENDENTE` — o pedido é sempre lançado diretamente pela equipe do estabelecimento (não há tela de solicitação do cliente), então já nasce `CONFIRMADO`.
 
 ```
-PENDENTE → CONFIRMADO → PREPARANDO → ENTREGUE
-    └──────────┴─────────────┴──────→ CANCELADO
+CONFIRMADO → PREPARANDO → ENTREGUE
+    └─────────────┴──────→ CANCELADO
 ```
 
 **Tipo de entrega:** `ENTREGA` · `RETIRADA`
@@ -232,10 +232,11 @@ As listagens aceitam `page` (padrão `1`) e `pageSize` (padrão `20`, máx. `100
 |--------|------|-----------|
 | `GET` | `/api/cardapio` | Lista os itens do cardápio (paginado; ignora itens excluídos) |
 | `POST` | `/api/cardapio` | Cadastra um item no cardápio |
+| `PATCH` | `/api/cardapio/:id` | Edita um item do cardápio (`404` se não existir ou estiver excluído) |
 
 **Query — `GET /api/cardapio`:** `page`, `pageSize`, `search` (busca por nome, sem diferenciar maiúsculas/minúsculas).
 
-**Body — `POST /api/cardapio`:**
+**Body — `POST /api/cardapio` e `PATCH /api/cardapio/:id`** (mesmo formato nos dois):
 
 | Campo | Tipo | Obrigatório | Regras |
 |-------|------|-------------|--------|
@@ -244,6 +245,8 @@ As listagens aceitam `page` (padrão `1`) e `pageSize` (padrão `20`, máx. `100
 | `preco` | number | sim | positivo, no máximo 2 casas decimais |
 | `categoria` | string | sim | 1–50 caracteres (ex.: `Pratos`, `Bebidas`) |
 | `disponivel` | boolean | não | padrão `true` |
+
+No `PATCH`, o corpo substitui o item por completo (não é um merge parcial) — envie todos os campos.
 
 Valores monetários são devolvidos como **string** decimal (ex.: `"18.5"`), para não perder precisão.
 
@@ -254,12 +257,13 @@ Valores monetários são devolvidos como **string** decimal (ex.: `"18.5"`), par
 | `GET` | `/api/clientes` | Lista clientes (paginado) |
 | `GET` | `/api/clientes/:id` | Detalha um cliente (`404` se não existir) |
 | `POST` | `/api/clientes` | Cadastra um cliente |
+| `PATCH` | `/api/clientes/:id` | Edita um cliente (`404` se não existir) |
 
 **Query — `GET /api/clientes`:** `page`, `pageSize`, `search`.
 
 A busca aceita **telefone, endereço ou nome** (ex.: `13 99123`, `dom pedro 350`, `enseada`). O texto é dividido em termos, e **cada termo** precisa aparecer em algum campo: nome, logradouro, número, complemento, bairro ou cidade (sem diferenciar maiúsculas/minúsculas), ou, pelos dígitos, telefone e CEP.
 
-**Body — `POST /api/clientes`:**
+**Body — `POST /api/clientes` e `PATCH /api/clientes/:id`** (mesmo formato nos dois; no `PATCH` o corpo substitui o cliente por completo):
 
 | Campo | Tipo | Obrigatório | Regras |
 |-------|------|-------------|--------|
@@ -302,11 +306,13 @@ Aceita o CEP com ou sem hífen (`11410-000` ou `11410000`).
 |--------|------|-----------|
 | `GET` | `/api/pedidos` | Lista pedidos, do mais recente para o mais antigo (paginado), com cliente e itens |
 | `GET` | `/api/pedidos/:id` | Detalha um pedido com cliente e itens (`404` se não existir) |
+| `POST` | `/api/pedidos` | Registra um pedido com um ou mais itens do cardápio |
+| `PATCH` | `/api/pedidos/:id` | Edita os itens, `tipoEntrega`, `taxaEntrega`, `desconto` e `obs` de um pedido |
+| `PATCH` | `/api/pedidos/:id/status` | Avança (ou cancela) o status do pedido |
 
 As respostas incluem `tipoEntrega`, `taxaEntrega`, `desconto` e `valorTotal` de cada pedido.
-| `POST` | `/api/pedidos` | Registra um pedido com um ou mais itens do cardápio |
 
-**Query — `GET /api/pedidos`:** `page`, `pageSize`, `status` (`PENDENTE`, `CONFIRMADO`, `PREPARANDO`, `ENTREGUE` ou `CANCELADO`).
+**Query — `GET /api/pedidos`:** `page`, `pageSize`, `status` (`CONFIRMADO`, `PREPARANDO`, `ENTREGUE` ou `CANCELADO`).
 
 **Body — `POST /api/pedidos`:**
 
@@ -340,13 +346,109 @@ Com os itens custando R$ 15,00 e R$ 6,00, o pedido é gravado com `valorTotal` =
 
 Regras aplicadas pela API:
 
-- O pedido é criado com status `PENDENTE`.
+- O pedido é criado com status `CONFIRMADO` (não existe status `PENDENTE` — o pedido já nasce confirmado, pois é sempre lançado diretamente pela equipe).
 - O `precoUnitario` de cada item é o **preço atual** do cardápio, gravado no pedido; mudanças futuras de preço não alteram pedidos já registrados.
 - O `valorTotal` é sempre calculado pela API: **Σ (quantidade × precoUnitario) + taxaEntrega − desconto**. Se for enviado no corpo da requisição, é ignorado.
 - `RETIRADA` com `taxaEntrega` diferente de `0`, ou `taxaEntrega`/`desconto` negativos → `422 VALIDATION_ERROR`.
 - Desconto que deixaria o total negativo → `422 INVALID_DESCONTO`.
 - Os cálculos usam aritmética decimal exata (sem arredondamentos de ponto flutuante).
 - Cliente inexistente ou item do cardápio inexistente/excluído → `404`; item marcado como indisponível → `409`.
+
+**Body — `PATCH /api/pedidos/:id`:** mesmo formato de `POST /api/pedidos`, exceto que **não** tem `clienteId` (o cliente do pedido não muda). Os `itens` enviados substituem **todos** os itens atuais do pedido — não é possível adicionar/remover individualmente, envie a lista completa. `valorTotal` é recalculado da mesma forma que no cadastro. Só é permitido enquanto o pedido está `CONFIRMADO`; depois disso → `409 CONFLICT`.
+
+**Body — `PATCH /api/pedidos/:id/status`:**
+
+```json
+// PATCH /api/pedidos/1/status
+{ "status": "CONFIRMADO" }
+```
+
+O status só avança um passo por vez: `CONFIRMADO → PREPARANDO → ENTREGUE`, com `CANCELADO` disponível a partir de `CONFIRMADO` ou `PREPARANDO`. `CONFIRMADO` nunca é um destino válido (é o estado inicial, não uma transição). `ENTREGUE` e `CANCELADO` são finais. Qualquer outra transição (pular etapas, voltar atrás, mexer em um pedido finalizado) → `409 CONFLICT`.
+
+### Pagamentos
+
+Registro interno da forma de pagamento de um pedido — **não** há integração com gateway de pagamento online; é apenas o controle de quanto e como o estabelecimento recebeu.
+
+| Método | Rota | Descrição |
+|--------|------|-----------|
+| `POST` | `/api/pagamentos` | Registra o pagamento de um pedido |
+| `GET` | `/api/pagamentos/:pedidoId` | Consulta o pagamento de um pedido (`404` se não houver) |
+| `PATCH` | `/api/pagamentos/:pedidoId` | Atualiza o status do pagamento (`PAGO` ou `ESTORNADO`) |
+| `PATCH` | `/api/pagamentos/:pedidoId/forma` | Altera a forma de pagamento, em qualquer status |
+
+**Body — `POST /api/pagamentos`:**
+
+| Campo | Tipo | Obrigatório | Regras |
+|-------|------|-------------|--------|
+| `pedidoId` | number | sim | pedido existente, não `CANCELADO`, sem pagamento registrado |
+| `forma` | string | sim | `DINHEIRO`, `PIX`, `CARTAO_CREDITO` ou `CARTAO_DEBITO` |
+
+```json
+// POST /api/pagamentos
+{ "pedidoId": 1, "forma": "PIX" }
+```
+
+```json
+// PATCH /api/pagamentos/1
+{ "status": "PAGO" }
+```
+
+```json
+// PATCH /api/pagamentos/1/forma
+{ "forma": "CARTAO_CREDITO" }
+```
+
+Regras aplicadas pela API:
+
+- O `valor` do pagamento **nunca** é aceito do corpo da requisição: é sempre copiado do `valorTotal` do pedido no momento do registro.
+- Um pedido só pode ter um pagamento (`pedidoId` é único) → registrar de novo resulta em `409`.
+- Pedido `CANCELADO` não pode receber pagamento → `409`.
+- O status transita em `PENDENTE → PAGO → ESTORNADO`, e `ESTORNADO → PAGO` para desfazer um estorno feito por engano; qualquer outra transição (ex.: `PENDENTE → ESTORNADO`) → `409`.
+- `dataPagamento` é atualizada para o momento atual sempre que o status muda **para** `PAGO` (inclusive ao desfazer um estorno), e preservada ao estornar.
+- `forma` pode ser alterada a qualquer momento, independente do status.
+
+### Dashboard
+
+Painel de indicadores do estabelecimento, calculado a partir do histórico de pedidos.
+
+| Método | Rota | Descrição |
+|--------|------|-----------|
+| `GET` | `/api/dashboard` | Indicadores agregados de pedidos, pagamentos e cardápio |
+
+**Query — `GET /api/dashboard`:** `from`, `to` (datas ISO, ambas opcionais; filtram por `dataPedido`). Sem elas, considera todo o histórico.
+
+```json
+// GET /api/dashboard?from=2026-10-01&to=2026-10-31
+{
+  "faturamentoTotal": "1540.00",
+  "ticketMedio": "38.50",
+  "faturamentoPorPeriodo": [
+    { "data": "2026-10-01", "pedidos": 3, "faturamento": "120.00" }
+  ],
+  "vendasPorDiaSemana": [
+    { "diaSemana": "SEGUNDA", "pedidos": 5, "faturamento": "210.00", "ticketMedio": "42.00" },
+    { "diaSemana": "TERCA", "pedidos": 2, "faturamento": "80.00", "ticketMedio": "40.00" }
+  ],
+  "pedidosPorStatus": { "CONFIRMADO": 2, "PREPARANDO": 0, "ENTREGUE": 36, "CANCELADO": 1 },
+  "itensMaisVendidos": [
+    { "cardapioId": 2, "nome": "Marmita Executiva", "quantidade": 58 }
+  ],
+  "pagamentosPorForma": [
+    { "forma": "DINHEIRO", "quantidade": 10, "valor": "420.00" },
+    { "forma": "PIX", "quantidade": 20, "valor": "900.00" },
+    { "forma": "CARTAO_CREDITO", "quantidade": 8, "valor": "180.00" },
+    { "forma": "CARTAO_DEBITO", "quantidade": 2, "valor": "40.00" }
+  ]
+}
+```
+
+Regras aplicadas pela API:
+
+- Pedidos `CANCELADO` **não** entram no `faturamentoTotal`, `ticketMedio` nem em `faturamentoPorPeriodo`/`vendasPorDiaSemana`/`itensMaisVendidos` — mas aparecem normalmente em `pedidosPorStatus`, que sempre traz os 5 status (zerados quando não houver pedidos).
+- `faturamentoPorPeriodo` agrupa por dia (`dataPedido`), em ordem crescente.
+- `vendasPorDiaSemana` agrupa por dia da semana (`dataPedido`), sempre com os 7 dias na ordem `SEGUNDA..DOMINGO` (zerados quando não houver pedidos naquele dia da semana); `ticketMedio` é `faturamento / pedidos` daquele dia (zero quando não houver pedidos).
+- `itensMaisVendidos` traz os 5 itens do cardápio com maior soma de `quantidade` vendida no período.
+- `pagamentosPorForma` conta apenas pagamentos com `status = PAGO` (pendentes e estornados não entram), sempre com as 4 formas (zeradas quando não houver pagamentos naquela forma).
 
 ---
 
