@@ -15,7 +15,7 @@ import pagamentoRoutes from './modules/pagamentos/pagamento.routes';
 import dashboardRoutes from './modules/dashboard/dashboard.routes';
 
 const app = express();
-app.use(cors({ origin: env.ALLOWED_ORIGINS.split(',') }));
+app.use(cors({ origin: env.ALLOWED_ORIGINS.split(',').map((origin) => origin.trim()) }));
 app.use(express.json());
 const SENSITIVE_FIELDS = ['password', 'senha', 'token', 'authorization', 'Authorization'];
 
