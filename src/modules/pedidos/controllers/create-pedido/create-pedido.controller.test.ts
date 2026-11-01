@@ -20,7 +20,7 @@ const validBody = {
   ],
 };
 
-const fakePedido = { id: 1, status: 'PENDENTE', valorTotal: '111.20', clienteId: 1, itens: [] };
+const fakePedido = { id: 1, status: 'CONFIRMADO', valorTotal: '111.20', clienteId: 1, itens: [] };
 
 function makeMocks(body: unknown = validBody) {
   const req = { body } as unknown as Request;

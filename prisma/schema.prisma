@@ -42,7 +42,7 @@ model Cardapio {
 model Pedido {
   id          Int          @id @default(autoincrement())
   dataPedido  DateTime     @default(now()) @map("data_pedido")
-  status      StatusPedido @default(PENDENTE)
+  status      StatusPedido @default(CONFIRMADO)
   tipoEntrega TipoEntrega  @map("tipo_entrega")
   taxaEntrega Decimal      @default(0) @map("taxa_entrega") @db.Decimal(10, 2)
   desconto    Decimal      @default(0) @db.Decimal(10, 2)
@@ -85,7 +85,6 @@ model Pagamento {
 }
 
 enum StatusPedido {
-  PENDENTE
   CONFIRMADO
   PREPARANDO
   ENTREGUE

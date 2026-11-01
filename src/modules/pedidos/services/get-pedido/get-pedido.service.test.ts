@@ -12,7 +12,7 @@ describe('getPedido service', () => {
   beforeEach(() => { vi.clearAllMocks(); });
 
   it('should return the pedido when it exists', async () => {
-    const fakePedido = { id: 7, status: 'PENDENTE', itens: [] };
+    const fakePedido = { id: 7, status: 'CONFIRMADO', itens: [] };
     vi.mocked(findPedidoById).mockResolvedValue(fakePedido as never);
 
     const result = await getPedido(7);

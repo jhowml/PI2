@@ -21,7 +21,7 @@ describe('getPedidoController', () => {
   beforeEach(() => { vi.clearAllMocks(); });
 
   it('should return the pedido', async () => {
-    const fakePedido = { id: 7, status: 'PENDENTE', itens: [] };
+    const fakePedido = { id: 7, status: 'CONFIRMADO', itens: [] };
     vi.mocked(getPedido).mockResolvedValue(fakePedido as never);
 
     const { req, res, next } = makeMocks('7');

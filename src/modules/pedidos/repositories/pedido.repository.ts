@@ -1,4 +1,4 @@
-import { Prisma, TipoEntrega } from '@prisma/client';
+import { Prisma, StatusPedido, TipoEntrega } from '@prisma/client';
 import { prisma } from '@/config/database';
 import { paginate } from '@/shared/types/pagination';
 import { ListPedidosDTO } from '@/modules/pedidos/dtos/list-pedidos/list-pedidos.types';
@@ -56,4 +56,35 @@ export async function insertPedido(input: PedidoInsertInput) {
 
 export async function findPedidoById(id: number) {
   return prisma.pedido.findUnique({ where: { id }, include: pedidoInclude });
+}
+
+export type PedidoUpdateInput = {
+  tipoEntrega: TipoEntrega;
+  taxaEntrega: Prisma.Decimal;
+  desconto: Prisma.Decimal;
+  valorTotal: Prisma.Decimal;
+  obs?: string;
+  itens: ItemPedidoInsertInput[];
+};
+
+export async function updatePedido(id: number, input: PedidoUpdateInput) {
+  return prisma.$transaction(async (tx) => {
+    await tx.itemPedido.deleteMany({ where: { pedidoId: id } });
+    return tx.pedido.update({
+      where: { id },
+      data: {
+        tipoEntrega: input.tipoEntrega,
+        taxaEntrega: input.taxaEntrega,
+        desconto: input.desconto,
+        valorTotal: input.valorTotal,
+        obs: input.obs ?? null,
+        itens: { create: input.itens },
+      },
+      include: pedidoInclude,
+    });
+  });
+}
+
+export async function updatePedidoStatus(id: number, status: StatusPedido) {
+  return prisma.pedido.update({ where: { id }, data: { status }, include: pedidoInclude });
 }

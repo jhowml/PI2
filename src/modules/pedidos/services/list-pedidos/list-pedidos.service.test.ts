@@ -7,7 +7,7 @@ vi.mock('../../repositories/pedido.repository', () => ({
 
 import { listPedidos as listPedidosRepository } from '../../repositories/pedido.repository';
 
-const fakePedido = { id: 1, status: 'PENDENTE', valorTotal: '117.70', clienteId: 1, itens: [] };
+const fakePedido = { id: 1, status: 'CONFIRMADO', valorTotal: '117.70', clienteId: 1, itens: [] };
 
 describe('listPedidos service', () => {
   beforeEach(() => { vi.clearAllMocks(); });

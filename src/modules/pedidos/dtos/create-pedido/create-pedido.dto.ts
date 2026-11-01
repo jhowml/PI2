@@ -1,12 +1,12 @@
 import { z } from 'zod';
 import { TipoEntrega } from '@prisma/client';
 
-const itemPedidoSchema = z.object({
+export const itemPedidoSchema = z.object({
   cardapioId: z.number().int().positive(),
   quantidade: z.number().int().positive().max(999),
 });
 
-const moneySchema = z.number().nonnegative().multipleOf(0.01).max(99_999_999.99);
+export const moneySchema = z.number().nonnegative().multipleOf(0.01).max(99_999_999.99);
 
 export const createPedidoSchema = z
   .object({
