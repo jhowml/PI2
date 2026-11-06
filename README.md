@@ -83,7 +83,13 @@ npm run db:migrate
 npm run db:seed
 ```
 
-Insere itens de cardápio, clientes com endereços **fictícios** do Guarujá e dois pedidos de exemplo (um de entrega com taxa e um de retirada com desconto). O seed só insere dados em tabelas vazias, então pode ser executado mais de uma vez.
+Insere itens de cardápio, clientes com endereços **fictícios** (CEP `00000-000`, logradouros "Exemplo"/"Modelo" — não correspondem a endereços reais) e dois pedidos de exemplo (um de entrega com taxa e um de retirada com desconto). O seed só insere dados em tabelas vazias, então pode ser executado mais de uma vez.
+
+Para apagar tudo e recomeçar do zero (inclui os pedidos de outubro gerados por `seed-outubro.ts`):
+
+```bash
+npm run db:reset-demo-data
+```
 
 ### 5. Subir a API
 

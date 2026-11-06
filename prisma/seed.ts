@@ -43,44 +43,46 @@ async function seedCardapio() {
 async function seedClientes() {
   if ((await prisma.cliente.count()) > 0) return;
 
-  // Endereços fictícios, apenas para desenvolvimento.
+  // Dados inteiramente fictícios: nenhum nome, telefone, CEP ou logradouro aqui
+  // corresponde a uma pessoa ou endereço real. CEP 00000-000 e ruas "Exemplo"/"Modelo"
+  // são usados de propósito, para não se parecer com um endereço real de Guarujá.
   await prisma.cliente.createMany({
     data: [
       {
-        nome: 'Maria Aparecida Santos',
-        telefone: '13991234567',
-        cep: '11450000',
-        logradouro: 'Avenida Thiago Ferreira',
-        numero: '1200',
-        bairro: 'Vicente de Carvalho',
+        nome: 'Cliente Exemplo Um',
+        telefone: '13900000001',
+        cep: '00000000',
+        logradouro: 'Rua Exemplo das Acácias',
+        numero: '100',
+        bairro: 'Bairro Modelo',
         cidade: 'Guarujá',
         uf: 'SP',
       },
       {
-        nome: 'Carlos Eduardo Lima',
-        telefone: '13997654321',
-        obs: 'Interfone quebrado, ligar ao chegar',
-        cep: '11440000',
-        logradouro: 'Avenida Dom Pedro I',
-        numero: '350',
-        complemento: 'Apto 42',
-        bairro: 'Enseada',
+        nome: 'Cliente Exemplo Dois',
+        telefone: '13900000002',
+        obs: 'Observação fictícia de teste',
+        cep: '00000000',
+        logradouro: 'Avenida Modelo Central',
+        numero: '200',
+        complemento: 'Apto 1 (fictício)',
+        bairro: 'Bairro Modelo',
         cidade: 'Guarujá',
         uf: 'SP',
       },
       {
-        nome: 'Ana Paula Ferreira',
-        telefone: '1333551020',
-        cep: '11410000',
-        logradouro: 'Avenida Marechal Deodoro da Fonseca',
-        numero: '88',
-        bairro: 'Pitangueiras',
+        nome: 'Cliente Exemplo Três',
+        telefone: '13900000003',
+        cep: '00000000',
+        logradouro: 'Rua Teste dos Coqueiros',
+        numero: '300',
+        bairro: 'Bairro Modelo',
         cidade: 'Guarujá',
         uf: 'SP',
       },
       {
-        nome: 'João Retirada Balcão',
-        telefone: '13988887777',
+        nome: 'Cliente Exemplo Retirada',
+        telefone: '13900000004',
         obs: 'Cliente de retirada no balcão, sem endereço',
       },
     ],
@@ -124,11 +126,11 @@ async function seedPedidos() {
   if ((await prisma.pedido.count()) > 0) return;
 
   await createPedidoExemplo({
-    clienteNome: 'Carlos Eduardo Lima',
+    clienteNome: 'Cliente Exemplo Dois',
     tipoEntrega: TipoEntrega.ENTREGA,
     taxaEntrega: '8.00',
     desconto: '0.00',
-    obs: 'Interfone quebrado, ligar ao chegar',
+    obs: 'Observação fictícia de teste',
     itens: [
       { cardapioNome: 'Picanha na chapa', quantidade: 1 },
       { cardapioNome: 'Refrigerante lata', quantidade: 2 },
@@ -136,7 +138,7 @@ async function seedPedidos() {
   });
 
   await createPedidoExemplo({
-    clienteNome: 'João Retirada Balcão',
+    clienteNome: 'Cliente Exemplo Retirada',
     tipoEntrega: TipoEntrega.RETIRADA,
     taxaEntrega: '0.00',
     desconto: '5.00',
